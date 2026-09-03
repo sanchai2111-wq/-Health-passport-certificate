@@ -1,3 +1,4 @@
+SHEET_API_URL
 <!DOCTYPE html>
 <html lang="th">
 <head>
@@ -163,8 +164,33 @@ function renderCertCategory(){
         <div><div class="role-title">ประชาชนทั่วไป</div><div class="role-desc">ต้องสแกนสะสมครบ ${THRESHOLD} จาก ${ZONES.length} โซนก่อน</div></div>
       </button>
       ${otherButtons}
+      <label style="margin-top:18px;">เคยลงทะเบียนไปแล้ว (เจ้าหน้าที่/หน่วยงาน/ร้านค้า/ตัวแทน) ทำเกียรติบัตรหายหรือหาไม่เจอ?</label>
+      <input type="text" id="other-name-search">
+      <button class="btn btn-outline btn-block" onclick="doOtherCertLookupByName()">ค้นหาด้วยชื่อ (ขอเกียรติบัตรเดิมซ้ำ)</button>
+      <div id="other-name-search-result"></div>
     </div>
   `;
+}
+async function doOtherCertLookupByName(){
+  const q = document.getElementById('other-name-search').value.trim();
+  const box = document.getElementById('other-name-search-result');
+  if(!q){ box.innerHTML = `<div class="error-box">กรุณาพิมพ์ชื่อหรือนามสกุล</div>`; return; }
+  box.innerHTML = `<div class="hint">กำลังค้นหา...</div>`;
+  try{
+    const list = await apiGet({action:'searchOtherCertsByName', q});
+    if(!list.length){ box.innerHTML = `<div class="error-box">ไม่พบชื่อที่ตรงกัน</div>`; return; }
+    box.innerHTML = list.map(r => `
+      <button class="role-card" style="margin-top:8px;" onclick='redownloadOtherCert(${JSON.stringify(r)})'>
+        <div><div class="role-title">${r.name}</div><div class="role-desc">${r.orgName || ''} · ${r.certNo || 'ยังไม่ออกเลขที่'}</div></div>
+      </button>
+    `).join('');
+  }catch(e){
+    box.innerHTML = `<div class="error-box">ค้นหาไม่สำเร็จ: ${(e&&e.message)||'ไม่ทราบสาเหตุ'}</div>`;
+  }
+}
+async function redownloadOtherCert(r){
+  if(!r.certNo){ alert('รายการนี้ยังไม่มีเลขที่เกียรติบัตร'); return; }
+  await generateCertificate({ name:r.name, certNo:r.certNo, category:r.category, orgName:r.orgName });
 }
 function renderCertStudentInfo(){
   app.innerHTML = `
@@ -213,8 +239,12 @@ async function submitOtherCert(){
   try{
     const r = await apiPost({ action:'registerAndIssueOtherCert', category:cat.id, name, orgName });
     if(r.error){ errBox.innerHTML = `<div class="error-box">${r.error}</div>`; return; }
+    if(r.duplicate){
+      errBox.innerHTML = `<div class="error-box">⚠️ ชื่อนี้เคยลงทะเบียนในหมวดนี้ไปแล้ว (เลขที่ ${r.certNo}) กำลังดาวน์โหลดเกียรติบัตรเดิมให้แทน</div>`;
+    } else {
+      errBox.innerHTML = '';
+    }
     await generateCertificate({ name:r.name, certNo:r.certNo, category:r.category, orgName:r.orgName });
-    errBox.innerHTML = '';
   }catch(e){
     errBox.innerHTML = `<div class="error-box">ไม่สำเร็จ: ${(e&&e.message)||'ไม่ทราบสาเหตุ'}</div>`;
   }
@@ -231,6 +261,8 @@ function renderScan(){
       <p class="lead">เลือกโซนที่ประจำอยู่ แล้วสแกน QR ของผู้ร่วมงาน (ใบเดิม) ทีละคน</p>
       <label>โซนที่ประจำอยู่</label>
       <select id="scan-zone">${zoneOptions}</select>
+      <label>ชื่อผู้ร่วมงาน (กรอกครั้งแรกครั้งเดียว ช่วยให้ค้นหาด้วยชื่อได้ทีหลัง)</label>
+      <input type="text" id="scan-name" placeholder="ไม่บังคับ แต่แนะนำให้กรอก">
       <button class="btn btn-primary btn-block" onclick="startScanner()">📷 เริ่มสแกน</button>
       <div id="reader-box"></div>
       <div id="scan-result"></div>
@@ -258,10 +290,11 @@ function stopScanner(){
 }
 async function handleScan(uid){
   const zoneId = document.getElementById('scan-zone').value;
+  const name = document.getElementById('scan-name').value.trim();
   const resultBox = document.getElementById('scan-result');
   resultBox.innerHTML = `<div class="hint">กำลังบันทึก...</div>`;
   try{
-    const r = await apiPost({ action:'stampZone', uid, zoneId });
+    const r = await apiPost({ action:'stampZone', uid, zoneId, name });
     if(r.error){ resultBox.innerHTML = `<div class="error-box">${r.error}</div>`; return; }
     const zoneName = ZONES.find(z=>z.id===zoneId)?.name || zoneId;
     if(r.alreadyStamped){
@@ -288,8 +321,34 @@ function renderCert(){
       <div id="cert-reader-box"></div>
       <button class="btn btn-primary btn-block" onclick="checkStatus()">ตรวจสอบ</button>
       <div id="cert-status-result"></div>
+      <label style="margin-top:18px;">จำรหัสไม่ได้? ค้นหาด้วยชื่อ-นามสกุลแทน</label>
+      <input type="text" id="cert-name-search">
+      <button class="btn btn-outline btn-block" onclick="doCertLookupByName()">ค้นหาด้วยชื่อ</button>
+      <div id="cert-name-search-result"></div>
+      <p class="hint" style="margin-top:8px;">* ค้นหาด้วยชื่อได้เฉพาะคนที่เคยแจ้งชื่อไว้กับเจ้าหน้าที่ตอนสแกนที่บูธแล้วเท่านั้น ถ้ายังไม่เคยแจ้งชื่อเลย ต้องใช้ QR/รหัสเดิมค้นหาก่อนในครั้งแรก</p>
     </div>
   `;
+}
+async function doCertLookupByName(){
+  const q = document.getElementById('cert-name-search').value.trim();
+  const box = document.getElementById('cert-name-search-result');
+  if(!q){ box.innerHTML = `<div class="error-box">กรุณาพิมพ์ชื่อหรือนามสกุล</div>`; return; }
+  box.innerHTML = `<div class="hint">กำลังค้นหา...</div>`;
+  try{
+    const list = await apiGet({action:'searchCertStampsByName', q});
+    if(!list.length){ box.innerHTML = `<div class="error-box">ไม่พบชื่อที่ตรงกัน (อาจยังไม่เคยแจ้งชื่อไว้ตอนสแกนที่บูธ)</div>`; return; }
+    box.innerHTML = list.map(p => `
+      <button class="role-card" style="margin-top:8px;" onclick='selectFoundCertUid(${JSON.stringify(p.uid)})'>
+        <div><div class="role-title">${p.name}</div><div class="role-desc">${p.uid}</div></div>
+      </button>
+    `).join('');
+  }catch(e){
+    box.innerHTML = `<div class="error-box">ค้นหาไม่สำเร็จ: ${(e&&e.message)||'ไม่ทราบสาเหตุ'}</div>`;
+  }
+}
+async function selectFoundCertUid(uid){
+  document.getElementById('cert-uid').value = uid;
+  await checkStatus();
 }
 function startCertScanner(){
   const box = document.getElementById('cert-reader-box');
