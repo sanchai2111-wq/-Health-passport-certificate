@@ -461,26 +461,26 @@ async function generateCertificate(data){
   ctx.fillStyle = '#143C78';
 
   // ชื่อผู้รับ — ตัวหนาพิเศษ (เบราว์เซอร์สังเคราะห์ตัวหนาให้จากฟอนต์เส้นเดียว)
-  let nameSize = 46;
+  let nameSize = 68;
   ctx.font = `700 ${nameSize}px SOVHuaHlam`;
-  while (ctx.measureText(data.name).width > W - 500 && nameSize > 24) {
+  while (ctx.measureText(data.name).width > W - 400 && nameSize > 32) {
     nameSize -= 2;
     ctx.font = `700 ${nameSize}px SOVHuaHlam`;
   }
   ctx.textAlign = 'center';
-  const nameY = data.orgName ? 570 : 585;
+  const nameY = data.orgName ? 555 : 565;
   ctx.fillText(data.name, W/2, nameY);
 
   if(data.orgName){
-    ctx.font = '700 26px Sarabun';
+    ctx.font = '700 30px SOVHuaHlam';
     const orgLabel = { partner:'หน่วยงาน', vendor:'ร้าน', representative:'หน่วยงาน' }[data.category] || 'หน่วยงาน';
-    ctx.fillText(`${orgLabel}: ${data.orgName}`, W/2, 638);
+    ctx.fillText(`${orgLabel}: ${data.orgName}`, W/2, 645);
   }
 
   // เลขที่เกียรติบัตร — ฟอนต์เดียวกันแต่น้ำหนักปกติ
   ctx.textAlign = 'left';
-  ctx.font = '400 30px SOVHuaHlam';
-  ctx.fillText(data.certNo, 1560, 55);
+  ctx.font = '400 44px SOVHuaHlam';
+  ctx.fillText(data.certNo, 1490, 42);
 
   const imgData = canvas.toDataURL('image/jpeg', 0.95);
   const { jsPDF } = window.jspdf;
