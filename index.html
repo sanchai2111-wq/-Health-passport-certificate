@@ -461,6 +461,7 @@ async function generateCertificate(data){
   ctx.fillStyle = '#143C78';
 
   // ชื่อผู้รับ — ตัวหนาพิเศษ (เบราว์เซอร์สังเคราะห์ตัวหนาให้จากฟอนต์เส้นเดียว)
+  // ตำแหน่งคำนวณให้อยู่กึ่งกลางพอดีระหว่างเส้น "แสดงว่า" (~y545) กับย่อหน้าด้านล่าง (~y720)
   let nameSize = 68;
   ctx.font = `700 ${nameSize}px SOVHuaHlam`;
   while (ctx.measureText(data.name).width > W - 400 && nameSize > 32) {
@@ -468,13 +469,19 @@ async function generateCertificate(data){
     ctx.font = `700 ${nameSize}px SOVHuaHlam`;
   }
   ctx.textAlign = 'center';
-  const nameY = data.orgName ? 555 : 565;
+  const nameY = data.orgName ? 572 : 602;
   ctx.fillText(data.name, W/2, nameY);
 
   if(data.orgName){
-    ctx.font = '700 30px SOVHuaHlam';
+    let orgSize = 54;
+    ctx.font = `700 ${orgSize}px SOVHuaHlam`;
     const orgLabel = { partner:'หน่วยงาน', vendor:'ร้าน', representative:'หน่วยงาน' }[data.category] || 'หน่วยงาน';
-    ctx.fillText(`${orgLabel}: ${data.orgName}`, W/2, 645);
+    const orgText = `${orgLabel}: ${data.orgName}`;
+    while (ctx.measureText(orgText).width > W - 300 && orgSize > 28) {
+      orgSize -= 2;
+      ctx.font = `700 ${orgSize}px SOVHuaHlam`;
+    }
+    ctx.fillText(orgText, W/2, 642);
   }
 
   // เลขที่เกียรติบัตร — ฟอนต์เดียวกันแต่น้ำหนักปกติ
