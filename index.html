@@ -493,7 +493,18 @@ async function generateCertificate(data){
   const { jsPDF } = window.jspdf;
   const pdf = new jsPDF({ orientation:'landscape', unit:'mm', format:'a4' });
   pdf.addImage(imgData, 'JPEG', 0, 0, 297, 210);
-  pdf.save(`เกียรติบัตร-${data.certNo.replace(/\//g,'-')}.pdf`);
+  const fileName = `เกียรติบัตร-${data.certNo.replace(/\//g,'-')}.pdf`;
+  // มือถือ (โดยเฉพาะ iOS Safari) มักดาวน์โหลดไฟล์ PDF แบบ data URI ของ jsPDF ไม่สำเร็จ/ไม่เสถียร
+  // ลองใช้เมนูแชร์ของเครื่องก่อน (เหมือนปุ่มแชร์ QR ในระบบหลัก) ถ้าไม่รองรับค่อย fallback เป็นดาวน์โหลดปกติ
+  try{
+    const pdfBlob = pdf.output('blob');
+    const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
+    if(navigator.canShare && navigator.canShare({ files: [file] })){
+      await navigator.share({ files: [file], title: fileName });
+      return;
+    }
+  }catch(e){ /* ผู้ใช้กดยกเลิก หรือเบราว์เซอร์ไม่รองรับ — ใช้ดาวน์โหลดปกติแทน */ }
+  pdf.save(fileName);
 }
 
 render();
