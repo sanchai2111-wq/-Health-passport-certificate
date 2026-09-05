@@ -525,25 +525,18 @@ async function generateCertificate(data){
 function showCertificateReady(pdfBlob, fileName){
   const blobUrl = URL.createObjectURL(pdfBlob);
   window.__lastCertBlob = pdfBlob;
-  const overlay = document.createElement('div');
-  overlay.className = 'stamp-overlay';
-  overlay.id = 'cert-ready-overlay';
-  overlay.innerHTML = `
-    <div class="page" style="max-width:420px;width:92%;text-align:center;">
+  window.__lastCertBlobUrl = blobUrl;
+  app.innerHTML = `
+    ${header(true)}
+    <div class="page" style="text-align:center;">
       <div style="font-size:40px;">🏅</div>
       <h2 style="font-size:18px;">เกียรติบัตรพร้อมแล้ว!</h2>
       <p class="lead" style="font-size:13px;">กด "ดาวน์โหลด" ด้านล่างเพื่อบันทึกไฟล์ลงเครื่องโดยตรง (แนะนำ — เจอไฟล์แน่นอนในโฟลเดอร์ดาวน์โหลด/ไฟล์)</p>
       <a href="${blobUrl}" download="${fileName}" class="btn btn-gold btn-block" style="display:block;text-decoration:none;box-sizing:border-box;">📥 ดาวน์โหลด PDF</a>
       <button class="btn btn-outline btn-block" style="margin-top:10px;" onclick='shareCertFile(${JSON.stringify(fileName)})'>📤 แชร์ไฟล์ (ส่งให้คนอื่นดู)</button>
-      <button class="btn btn-outline btn-block" style="margin-top:10px;" onclick="closeCertReady()">ปิดหน้าต่างนี้</button>
+      <button class="btn btn-outline btn-block" style="margin-top:10px;" onclick="state.view='cover';render()">กลับหน้าแรก</button>
     </div>
   `;
-  overlay.dataset.blobUrl = blobUrl;
-  document.body.appendChild(overlay);
-}
-function closeCertReady(){
-  const el = document.getElementById('cert-ready-overlay');
-  if(el){ try{ URL.revokeObjectURL(el.dataset.blobUrl); }catch(e){} el.remove(); }
 }
 async function shareCertFile(fileName){
   try{
