@@ -122,10 +122,29 @@ function render(){
   if(state.view==='cert-other-form') return renderCertOtherForm();
 }
 
+// ตรวจจับเบราว์เซอร์ในแอป (LINE/Facebook/Instagram/Messenger) ซึ่งมักบล็อกการดาวน์โหลด/แชร์ไฟล์
+// เตือนให้เปิดในเบราว์เซอร์เริ่มต้นของเครื่องแทน แก้ปัญหา "ไม่สามารถโหลดได้"
+function detectInAppBrowser(){
+  const ua = navigator.userAgent || '';
+  if(/Line\//i.test(ua)) return 'LINE';
+  if(/FBAN|FBAV|FB_IAB/i.test(ua)) return 'Facebook';
+  if(/Instagram/i.test(ua)) return 'Instagram';
+  if(/MicroMessenger/i.test(ua)) return 'WeChat';
+  return null;
+}
+function inAppBrowserBannerHtml(){
+  const app = detectInAppBrowser();
+  if(!app) return '';
+  return `<div class="banner" style="background:#FBEAE8;border-color:#E8B3AC;color:#8a2e24;">
+    ⚠️ ตรวจพบว่าเปิดผ่านเบราว์เซอร์ในแอป ${app} ซึ่งมักดาวน์โหลด/แชร์ไฟล์ไม่ได้เต็มรูปแบบ
+    แนะนำให้กดจุดสามจุด (⋮) หรือปุ่มเมนู แล้วเลือก "เปิดใน Chrome/Safari" ก่อนใช้งานต่อ
+  </div>`;
+}
 function renderCover(){
   app.innerHTML = `
     ${header(false)}
     <div class="page">
+      ${inAppBrowserBannerHtml()}
       <div class="banner">ระบบนี้แยกต่างหากจากระบบลงทะเบียนหลักโดยสมบูรณ์ — ใช้ QR ใบเดิมของผู้ร่วมงานสแกนได้เลย</div>
       <div class="eyebrow">มหกรรมตลาดนัดสุขภาพ กปท. เทศบาลเมืองนอกเมือง</div>
       <h2>เลือกเมนู</h2>
@@ -220,6 +239,7 @@ function renderCertOtherForm(){
   app.innerHTML = `
     ${header(true)}
     <div class="page">
+      ${inAppBrowserBannerHtml()}
       <div class="eyebrow">${cat.label}</div>
       <h2>กรอกข้อมูลเพื่อรับเกียรติบัตร</h2>
       <label>ชื่อ-นามสกุล</label>
@@ -410,6 +430,7 @@ function renderCertForm(){
   app.innerHTML = `
     ${header(true)}
     <div class="page">
+      ${inAppBrowserBannerHtml()}
       <div class="eyebrow">${r.uid || ''}</div>
       <h2>${r.certNo ? 'ดาวน์โหลดเกียรติบัตร' : 'กรอกชื่อสำหรับเกียรติบัตร'}</h2>
       <p class="lead">กรอกชื่อ-นามสกุลให้ถูกต้อง เพราะจะพิมพ์ลงในเกียรติบัตรตามที่กรอก</p>
@@ -494,17 +515,45 @@ async function generateCertificate(data){
   const pdf = new jsPDF({ orientation:'landscape', unit:'mm', format:'a4' });
   pdf.addImage(imgData, 'JPEG', 0, 0, 297, 210);
   const fileName = `เกียรติบัตร-${data.certNo.replace(/\//g,'-')}.pdf`;
-  // มือถือ (โดยเฉพาะ iOS Safari) มักดาวน์โหลดไฟล์ PDF แบบ data URI ของ jsPDF ไม่สำเร็จ/ไม่เสถียร
-  // ลองใช้เมนูแชร์ของเครื่องก่อน (เหมือนปุ่มแชร์ QR ในระบบหลัก) ถ้าไม่รองรับค่อย fallback เป็นดาวน์โหลดปกติ
+  const pdfBlob = pdf.output('blob');
+  showCertificateReady(pdfBlob, fileName);
+}
+
+// แสดงผลลัพธ์พร้อมปุ่ม "ดาวน์โหลด" เป็นตัวเลือกหลักเสมอ (ใช้ Blob URL + <a download> ซึ่งเชื่อถือได้
+// มากกว่าเมนูแชร์ของเครื่อง) ส่วนปุ่มแชร์เป็นตัวเลือกรองสำหรับส่งต่อให้คนอื่นเท่านั้น
+// แก้ปัญหาที่ผู้ใช้กดแชร์แล้วหาไฟล์ที่บันทึกไม่เจอว่าไปเก็บไว้ที่ไหน
+function showCertificateReady(pdfBlob, fileName){
+  const blobUrl = URL.createObjectURL(pdfBlob);
+  window.__lastCertBlob = pdfBlob;
+  const overlay = document.createElement('div');
+  overlay.className = 'stamp-overlay';
+  overlay.id = 'cert-ready-overlay';
+  overlay.innerHTML = `
+    <div class="page" style="max-width:420px;width:92%;text-align:center;">
+      <div style="font-size:40px;">🏅</div>
+      <h2 style="font-size:18px;">เกียรติบัตรพร้อมแล้ว!</h2>
+      <p class="lead" style="font-size:13px;">กด "ดาวน์โหลด" ด้านล่างเพื่อบันทึกไฟล์ลงเครื่องโดยตรง (แนะนำ — เจอไฟล์แน่นอนในโฟลเดอร์ดาวน์โหลด/ไฟล์)</p>
+      <a href="${blobUrl}" download="${fileName}" class="btn btn-gold btn-block" style="display:block;text-decoration:none;box-sizing:border-box;">📥 ดาวน์โหลด PDF</a>
+      <button class="btn btn-outline btn-block" style="margin-top:10px;" onclick='shareCertFile(${JSON.stringify(fileName)})'>📤 แชร์ไฟล์ (ส่งให้คนอื่นดู)</button>
+      <button class="btn btn-outline btn-block" style="margin-top:10px;" onclick="closeCertReady()">ปิดหน้าต่างนี้</button>
+    </div>
+  `;
+  overlay.dataset.blobUrl = blobUrl;
+  document.body.appendChild(overlay);
+}
+function closeCertReady(){
+  const el = document.getElementById('cert-ready-overlay');
+  if(el){ try{ URL.revokeObjectURL(el.dataset.blobUrl); }catch(e){} el.remove(); }
+}
+async function shareCertFile(fileName){
   try{
-    const pdfBlob = pdf.output('blob');
-    const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
+    const file = new File([window.__lastCertBlob], fileName, { type:'application/pdf' });
     if(navigator.canShare && navigator.canShare({ files: [file] })){
       await navigator.share({ files: [file], title: fileName });
-      return;
+    }else{
+      alert('เบราว์เซอร์นี้ไม่รองรับการแชร์ไฟล์ กรุณากดปุ่ม "ดาวน์โหลด PDF" แทนครับ');
     }
-  }catch(e){ /* ผู้ใช้กดยกเลิก หรือเบราว์เซอร์ไม่รองรับ — ใช้ดาวน์โหลดปกติแทน */ }
-  pdf.save(fileName);
+  }catch(e){ /* ผู้ใช้กดยกเลิกการแชร์ — ไม่ต้องแจ้งอะไร */ }
 }
 
 render();
